@@ -2,7 +2,7 @@ function Search-ByPrefixes {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [Object[]]$Items,
+        [Object]$Items,  # Accepts single object or collection
 
         [Parameter(Mandatory = $true)]
         [ValidateSet("DeviceName", "Name")]
@@ -16,21 +16,35 @@ function Search-ByPrefixes {
         [String[]]$Prefixes
     )
 
-    # Filter items based on prefix match
+    # Ensure $Items is always treated as an array
+    $Items = @($Items)
+
+    # Return empty array if $Items is null or empty
+    if (-not $Items) {
+        return @()
+    }
+
+    # Initialize filtered results
     $filteredItems = foreach ($item in $Items) {
+        if (-not $item) { continue }  # Skip null items
+
         foreach ($prefix in $Prefixes) {
-            if ($item.$NameProperty -and $item.$NameProperty.ToLower().StartsWith($prefix.ToLower())) {
-                if ($PSBoundParameters.ContainsKey('OSProperty')) {
-                    # Return Name & OS when OSProperty is provided
+            $nameValue = $item.$NameProperty
+            $osValue = if ($PSBoundParameters.ContainsKey('OSProperty')) { $item.$OSProperty } else { $null }
+
+            # Ensure $nameValue is not null and check for prefix match
+            if ($nameValue -and $nameValue -is [string] -and $nameValue.ToLower().StartsWith($prefix.ToLower())) {
+                if ($PSBoundParameters.ContainsKey('OSProperty') -and $osValue) {
+                    # Return Name & OS if OSProperty is provided and not null
                     [PSCustomObject]@{
-                        Name = $item.$NameProperty.Trim()
-                        OS   = $item.$OSProperty.Trim()
+                        Name = $nameValue.Trim()
+                        OS   = $osValue.Trim()
                     }
                 } else {
-                    # Return just NameProperty when OSProperty is not provided
-                    $item.$NameProperty.Trim()
+                    # Return just NameProperty if OSProperty is not used
+                    $nameValue.Trim()
                 }
-                break # Avoid redundant checks once matched
+                break  # Stop checking other prefixes for this item once matched
             }
         }
     }
