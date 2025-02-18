@@ -2,7 +2,7 @@ function Search-ByPrefixes {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [Object]$Items,
+        [Object[]]$Items,
 
         [Parameter(Mandatory = $true)]
         [ValidateSet("DeviceName", "Name")]
@@ -16,16 +16,24 @@ function Search-ByPrefixes {
         [String[]]$Prefixes
     )
 
-    # Filter items based on prefixes
-    $filteredItems = $Items | Where-Object {
-        $prefixes -match "^(?i)$_.$NameProperty"
+    # Filter items based on prefix match
+    $filteredItems = foreach ($item in $Items) {
+        foreach ($prefix in $Prefixes) {
+            if ($item.$NameProperty -and $item.$NameProperty.ToLower().StartsWith($prefix.ToLower())) {
+                if ($PSBoundParameters.ContainsKey('OSProperty')) {
+                    # Return Name & OS when OSProperty is provided
+                    [PSCustomObject]@{
+                        Name = $item.$NameProperty.Trim()
+                        OS   = $item.$OSProperty.Trim()
+                    }
+                } else {
+                    # Return just NameProperty when OSProperty is not provided
+                    $item.$NameProperty.Trim()
+                }
+                break # Avoid redundant checks once matched
+            }
+        }
     }
 
-    # If OSProperty is provided, return objects with both Name and OS fields
-    if ($PSBoundParameters.ContainsKey('OSProperty')) {
-        return $filteredItems | Select-Object @{Name="Name";Expression={$_.($NameProperty).Trim()}},
-                                               @{Name="OS";Expression={$_.($OSProperty).Trim()}}
-    } else {
-        return $filteredItems | ForEach-Object { $_.($NameProperty).Trim() }
-    }
+    return $filteredItems
 }
